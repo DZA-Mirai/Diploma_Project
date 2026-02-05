@@ -20,7 +20,7 @@ class UserBasedCF:
     Workflow:
       model = UserBasedCF(k=20)
       model.fit(train_df)
-      rmse, mae = evaluate_df(model, eval_df)  # from your evaluation.py
+      rmse, mae = evaluate_df(model, eval_df)
     """
     k: int = 20
     metric: str = "cosine"
@@ -73,7 +73,6 @@ class UserBasedCF:
         # vectorized mapping
         u_idx = train_df["userId"].map(self.user_id_map).to_numpy(dtype=np.int32)
         i_idx = train_df["movieId"].map(self.movie_id_map).to_numpy(dtype=np.int32)
-        # compute centered rating quickly
         # (train_df['userId'].map(user_mean_series) is also fine but slower)
         centered = (train_df["rating"].to_numpy(dtype=np.float32) - self.user_means[u_idx])
 
