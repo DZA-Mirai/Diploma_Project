@@ -187,7 +187,7 @@ class BiasedMF:
     # Training / evaluation
     # ---------------------------
 
-    def fit(self, train_ratings, val_ratings=None, patience=2) -> "BiasedMF":
+    def fit(self, train_ratings: pd.DataFrame, val_ratings: Optional[pd.DataFrame] = None, patience: int=2) -> "BiasedMF":
         """
         Fit model with SGD.
 
@@ -197,6 +197,8 @@ class BiasedMF:
         print(f"Training is starting with parameters {self.n_factors}, {self.lr}, {self.reg}, {self.n_epochs}")
         if len(train_ratings) == 0:
             raise ValueError("train_ratings is empty.")
+
+        self._rng = np.random.default_rng(self.seed)
 
         # Build maps only from training data
         (u, i, r), val_tuple = self._to_index_arrays(train_ratings, val_ratings)
@@ -219,7 +221,6 @@ class BiasedMF:
         for epoch in range(1, self.n_epochs + 1):
             print(f"Epoch number {epoch} started:\n")
             start = time.perf_counter()
-            self._rng.shuffle(idx)
 
             for t in idx:
                 uu = u[t]
@@ -259,16 +260,6 @@ class BiasedMF:
                     best_epoch = epoch
                     epochs_without_improvement = 0
 
-                    # Save best model state
-                    best_state = (
-                        self.bu.copy(),
-                        self.bi.copy(),
-                        self.P.copy(),
-                        self.Q.copy(),
-                    )
-
-                    # Save to disk
-                    self.save_checkpoint(r"C:\Users\dza\Desktop\Diploma Thesis\Code\MF\best_model.npz")
                 else:
                     epochs_without_improvement += 1
 
