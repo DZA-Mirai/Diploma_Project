@@ -94,3 +94,70 @@ class ItemBasedCF:
         self.distances, self.neighbors = self.knn.kneighbors(self.item_user_matrix)
 
         return self
+
+    def predict(self, user_id: int, movie_id: int) -> float:
+        """
+        Predict rating for a single (user_id, movie_id).
+        """
+        if self.user_id_map is None or self.movie_id_map is None:
+            raise RuntimeError("Model is not fitted. Call fit(train_df) first.")
+        assert self.item_means is not None
+        assert self.item_user_matrix is not None
+        assert self.neighbors is not None
+        assert self.distances is not None
+        assert self.global_mean is not None
+
+        u = self.user_id_map.get(user_id)
+        if u is None:
+            return self.global_mean     # unknown user -> fallback
+
+        i = self.movie_id_map.get(movie_id)
+        if i is None:
+            return self.global_mean     # unknown item -> fallback
+
+        return float(self._predict_idx(i, u))
+
+    def _predict_idx(self, m_idx: int, u_idx: int) -> float:
+        """
+        Core prediction using precomputed neighbors/distances.
+        Operates on internal indices.
+        """
+        assert self.item_means is not None
+        assert self.item_user_matrix is not None
+        assert self.neighbors is not None
+        assert self.distances is not None
+
+        # neighbors[0] is the user itself -> skip it
+        neigh_items = self.neighbors[m_idx, 1:]
+        neigh_dists = self.distances[m_idx, 1:]
+
+        # cosine distance -> similarity
+        sims = 1.0 - neigh_dists
+
+        # pull neighbor centered ratings for this movie
+        # if neighbor hasn't rated the movie, matrix entry is 0
+        neigh_centered = self.item_user_matrix[neigh_items, u_idx].toarray().ravel()
+
+        mask = neigh_centered != 0
+        if not np.any(mask):
+            # no neighbor info -> item mean
+            return float(self.item_means[m_idx])
+
+        sims = sims[mask]
+        neigh_centered = neigh_centered[mask]
+
+        denom = np.sum(np.abs(sims))
+        if denom < 1e-12:
+            return float(self.item_means[u_idx])
+
+        # weighted sum of centered ratings + add back item mean
+        pred_centered = float(np.dot(sims, neigh_centered) / denom)
+        pred = float(self.item_means[u_idx] + pred_centered)
+
+        # optional clipping for MovieLens scale
+        if pred < 0.5:
+            pred = 0.5
+        elif pred > 5.0:
+            pred = 5.0
+
+        return pred
